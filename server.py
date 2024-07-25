@@ -1,7 +1,7 @@
 from __future__ import annotations
-from app.graph_chain import graph_chain, CYPHER_GENERATION_PROMPT
-from app.vector_chain import vector_chain, VECTOR_PROMPT
-from app.simple_agent import simple_agent_chain
+from graph_chain import graph_chain, CYPHER_GENERATION_PROMPT
+from vector_chain import vector_chain, VECTOR_PROMPT
+from simple_agent import simple_agent_chain
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -9,6 +9,12 @@ from pydantic import BaseModel, Field
 from neo4j import exceptions
 import logging
 import os
+import streamlit as st
+
+st.write("Movie Recommendations App!")
+question = st.text_input("Input Your Question Here:")
+st.write("Your question is: {question}")
+
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 NEO4J_URI = os.getenv('NEO4J_URI')
 NEO4J_DATABASE = os.getenv('NEO4J_DATABASE')
