@@ -25,7 +25,7 @@ VECTOR_GRAPH_PROMPT = PromptTemplate(
 
 # Retrieve the OpenAI API key from the environment variable
 # Change to using Ollama
-openai_key = "sk-svcacct-7sctRz2dR7Xq9N7rieDFT3BlbkFJ2Bc57yICCR8DjBG5gROX"
+openai_key = os.getenv('OPENAI_API_KEY')
 
 EMBEDDING_MODEL = OpenAIEmbeddings(openai_api_key=openai_key)
 MEMORY = ConversationBufferMemory(
