@@ -24,8 +24,7 @@ def simple_agent_chain() -> Runnable:
         template=final_prompt,
     )
 
-    # OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    OPENAI_API_KEY = 'sk-svcacct-7sctRz2dR7Xq9N7rieDFT3BlbkFJ2Bc57yICCR8DjBG5gROX'
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     LLM = ChatOpenAI(temperature=0, openai_api_key=OPENAI_API_KEY)
     output_parser = StrOutputParser()
 
