@@ -48,11 +48,7 @@
 #         self.neo4j_handler.create_node_with_embedding(self.label, plot, embedding)
 #
 #
-# OPENAI_API_KEY = 'sk-svcacct-7sctRz2dR7Xq9N7rieDFT3BlbkFJ2Bc57yICCR8DjBG5gROX'
-# NEO4J_URI = 'bolt+s://25692c506ed88008fc9319624a853934'
-# NEO4J_DATABASE = 'neo4j'
-# NEO4J_USERNAME = 'neo4j'
-# NEO4J_PASSWORD = 'sidewalk-guard-statements'
+#
 # # Example usage
 # neo4j_handler = Neo4jHandler(NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD)
 # embedding_generator = EmbeddingGenerator()
