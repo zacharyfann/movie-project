@@ -7,100 +7,107 @@ from retry import retry
 import logging
 import os
 
-
+vector_store = None
+MEMORY = None
+openai_key = "sk-svcacct-7sctRz2dR7Xq9N7rieDFT3BlbkFJ2Bc57yICCR8DjBG5gROX"
+url = 'neo4j+s://47f87be8c93bce16c7382869f8994523.bolt.neo4jsandbox.com:443'
 # Define the prompt template
 VECTOR_GRAPH_PROMPT_TEMPLATE = """Task: Provide names and related information financial filing data strictly based on the text and instructions provided.
-Instructions:
-1. Answer the question STRICTLY based on the text.
-2. Do not assume or retrieve any information outside of the text provided.
-3. Use as much information from the text as possible, including sources and links if available.
-4. If the output is empty, just respond None.
+   Instructions:
+   1. Answer the question STRICTLY based on the text.
+   2. Do not assume or retrieve any information outside of the text provided.
+   3. Use as much information from the text as possible, including sources and links if available.
+   4. If the output is empty, just respond None.
 
-Question:
-{question}
-"""
+   Question:
+   {question}
+   """
 VECTOR_GRAPH_PROMPT = PromptTemplate(
     input_variables=["question"], template=VECTOR_GRAPH_PROMPT_TEMPLATE
 )
 
-# Retrieve the OpenAI API key from the environment variable
-# Change to using Ollama
-openai_key = "sk-svcacct-7sctRz2dR7Xq9N7rieDFT3BlbkFJ2Bc57yICCR8DjBG5gROX"
 
-EMBEDDING_MODEL = OpenAIEmbeddings(openai_api_key=openai_key)
-MEMORY = ConversationBufferMemory(
-    memory_key="chat_history",
-    input_key="question",
-    output_key="answer",
-    return_messages=True,
-)
+def vector_chain():
+    global MEMORY
+    # Retrieve the OpenAI API key from the environment variable
+    # Change to using Ollama
+    global openai_key
 
-index_name = "form_10k_chunks"
-node_property_name = "textEmbedding"
-url = "bolt+s://25692c506ed88008fc9319624a853934.bolt.neo4jsandbox.com:443"
-# Is the url correct?
-username = 'neo4j'
-password = 'sidewalk-guard-statements'
-
-retrieval_query = """
-    WITH node AS doc, score as similarity
-    ORDER BY similarity DESC LIMIT 5
-    CALL { WITH doc
-        OPTIONAL MATCH (prevDoc:Chunk)-[:NEXT]->(doc)
-        OPTIONAL MATCH (doc)-[:NEXT]->(nextDoc:Chunk)
-        RETURN prevDoc, doc AS result, nextDoc
-    }
-    WITH result, prevDoc, nextDoc, similarity
-    CALL {
-        WITH result
-        OPTIONAL MATCH (result)-[:PART_OF]->(:Form)<-[:FILED]-(company:Company)
-        OPTIONAL MATCH (company)<-[:OWNS_STOCK_IN]-(manager:Manager)
-        WITH result, company.name as companyName, apoc.text.join(collect(manager.managerName),';') as managers
-        WHERE companyName IS NOT NULL OR managers > ""
-        WITH result, companyName, managers
-        ORDER BY result.score DESC
-        RETURN result as document, result.score as popularity, companyName, managers
-    }
-    RETURN coalesce(prevDoc.text,'') + coalesce(document.text,'') + coalesce(nextDoc.text,'') + '\n Company: ' + coalesce(companyName,'') + '\n Managers: ' + coalesce(managers,'') as text, 
-        similarity as score,
-        {companies: coalesce(companyName,''), managers: coalesce(managers,''), source: document.source} AS metadata
-"""
-
-vector_store = None
-
-try:
-    logging.debug(f"Attempting to retrieve existing vector index: {index_name}...")
-    vector_store = Neo4jVector.from_existing_index(
-        embedding=EMBEDDING_MODEL,
-        url=url,
-        username=username,
-        password=password,
-        index_name=index_name,
-        embedding_node_property=node_property_name,
-        retrieval_query=retrieval_query,
+    EMBEDDING_MODEL = OpenAIEmbeddings(openai_api_key=openai_key)
+    MEMORY = ConversationBufferMemory(
+        memory_key="chat_history",
+        input_key="question",
+        output_key="answer",
+        return_messages=True,
     )
-    logging.debug(f"Using existing index: {index_name}")
-except Exception as e:
-    logging.debug(f"No existing index found. Error: {e}. Attempting to create a new vector index named {index_name}...")
+
+    index_name = "form_10k_chunks"
+    node_property_name = "textEmbedding"
+    global url
+    username = 'neo4j'
+    password = 'acre-ticks-response'
+
+    retrieval_query = """
+        WITH node AS doc, score as similarity
+        ORDER BY similarity DESC LIMIT 5
+        CALL { WITH doc
+            OPTIONAL MATCH (prevDoc:Chunk)-[:NEXT]->(doc)
+            OPTIONAL MATCH (doc)-[:NEXT]->(nextDoc:Chunk)
+            RETURN prevDoc, doc AS result, nextDoc
+        }
+        WITH result, prevDoc, nextDoc, similarity
+        CALL {
+            WITH result
+            OPTIONAL MATCH (result)-[:PART_OF]->(:Form)<-[:FILED]-(company:Company)
+            OPTIONAL MATCH (company)<-[:OWNS_STOCK_IN]-(manager:Manager)
+            WITH result, company.name as companyName, apoc.text.join(collect(manager.managerName),';') as managers
+            WHERE companyName IS NOT NULL OR managers > ""
+            WITH result, companyName, managers
+            ORDER BY result.score DESC
+            RETURN result as document, result.score as popularity, companyName, managers
+        }
+        RETURN coalesce(prevDoc.text,'') + coalesce(document.text,'') + coalesce(nextDoc.text,'') + '\n Company: ' + coalesce(companyName,'') + '\n Managers: ' + coalesce(managers,'') as text, 
+            similarity as score,
+            {companies: coalesce(companyName,''), managers: coalesce(managers,''), source: document.source} AS metadata
+    """
+
     try:
-        vector_store = Neo4jVector.from_existing_graph(
+        global vector_store
+        logging.debug(f"Attempting to retrieve existing vector index: {index_name}...")
+        vector_store = Neo4jVector.from_existing_index(
             embedding=EMBEDDING_MODEL,
             url=url,
             username=username,
             password=password,
             index_name=index_name,
-            node_label="Chunk",
-            text_node_properties=["text"],
             embedding_node_property=node_property_name,
             retrieval_query=retrieval_query,
         )
-        logging.debug(f"Created new index: {index_name}")
+        logging.debug(f"Using existing index: {index_name}")
     except Exception as e:
-        logging.error(f"Failed to retrieve existing or to create a Neo4jVector: {e}")
+        logging.debug(
+            f"No existing index found. Error: {e}. Attempting to create a new vector index named {index_name}...")
+        try:
 
-if vector_store is None:
-    logging.error(f"Failed to retrieve or create a Neo4jVector. Exiting.")
-    exit()
+            vector_store = Neo4jVector.from_existing_graph(
+                embedding=EMBEDDING_MODEL,
+                url=url,
+                username=username,
+                password=password,
+                index_name=index_name,
+                node_label="Chunk",
+                text_node_properties=["text"],
+                embedding_node_property=node_property_name,
+                retrieval_query=retrieval_query,
+            )
+            logging.debug(f"Created new index: {index_name}")
+        except Exception as e:
+            logging.error(f"Failed to retrieve existing or to create a Neo4jVector: {e}")
+
+    if vector_store is None:
+        logging.error(f"Failed to retrieve or create a Neo4jVector. Exiting.")
+        exit()
+
 
 vector_graph_retriever = vector_store.as_retriever()
 # Error here because vector_store is None
@@ -112,6 +119,7 @@ vector_graph_chain = RetrievalQAWithSourcesChain.from_chain_type(
     reduce_k_below_max_tokens=True,
     max_tokens_limit=3000,
 )
+
 
 @retry(tries=2, delay=5)
 def get_results(question) -> str:
@@ -146,3 +154,5 @@ def get_results(question) -> str:
             result += f"\n - [{source}]({source})"
 
     return result
+
+
