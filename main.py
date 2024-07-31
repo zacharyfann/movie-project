@@ -1,28 +1,27 @@
-import os
-from fastapi import FastAPI, HTTPException, Request, Response
+from __future__ import annotations
+# import streamlit as st
+import logging
+
+# st.write("Movie Recommendations App!")
+# question = st.text_input("Input Your Question Here:")
+# st.write(f"Your question is: {question}")
+
+from app.graph_chain import graph_chain, CYPHER_GENERATION_PROMPT
+from app.vector_chain import vector_chain, VECTOR_GRAPH_PROMPT
+from app.simple_agent import simple_agent_chain
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel, Field
 from neo4j import exceptions
-import logging
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
-
-# testing
-# Print all environment variables
-# for key, value in os.environ.items():
-#    print(f"{key}: {value}")
+import os
 
 
-# Ensure that you have imported your chains correctly
-from app.graph_chain import graph_chain, CYPHER_GENERATION_PROMPT
-from app.vector_chain import vector_graph_chain, VECTOR_GRAPH_PROMPT
-from app.simple_agent import simple_agent_chain
-
-app = FastAPI()
-
+OPENAI_API_KEY = 'sk-svcacct-7sctRz2dR7Xq9N7rieDFT3BlbkFJ2Bc57yICCR8DjBG5gROX'
+NEO4J_URI = 'neo4j+s://47f87be8c93bce16c7382869f8994523.bolt.neo4jsandbox.com:443'
+NEO4J_DATABASE = 'neo4j'
+NEO4J_USERNAME = 'neo4j'
+NEO4J_PASSWORD = 'acre-ticks-response'
 
 class ApiChatPostRequest(BaseModel):
     message: str = Field(..., description="The chat message to send")
@@ -55,20 +54,15 @@ class Neo4jExceptionMiddleware(BaseHTTPMiddleware):
             return Response(content=msg, status_code=400, media_type="text/plain")
 
 
-# Read the API key from the environment
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-NEO4J_URI = os.getenv('NEO4J_URI')
-NEO4J_DATABASE = os.getenv('NEO4J_DATABASE')
-NEO4J_USERNAME = os.getenv('NEO4J_USERNAME')
-NEO4J_PASSWORD = os.getenv('NEO4J_PASSWORD')
-
-
 # Allowed CORS origins
 origins = [
-    "http://127.0.0.1:8000",
+    "http://127.0.0.1:8000",  # Alternative localhost address
     "http://localhost:8000",
 ]
 
+app = FastAPI()
+
+# Add CORS middleware to allow cross-origin requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -76,8 +70,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# Add Neo4j exception handling middleware
 app.add_middleware(Neo4jExceptionMiddleware)
-
+# What does this do?
 
 @app.post(
     "/api/chat",
@@ -86,42 +81,47 @@ app.add_middleware(Neo4jExceptionMiddleware)
     tags=["chat"],
 )
 async def send_chat_message(body: ApiChatPostRequest):
+    # pass
+    """
+    Send a chat message
+    """
+
     question = body.message
 
+    # Simple exception check. See https://neo4j.com/docs/api/python-driver/current/api.html#errors for full set of driver exceptions
+
     if body.mode == "vector":
-        v_response = vector_graph_chain().invoke(
-            {"query": question}, prompt=VECTOR_GRAPH_PROMPT, return_only_outputs=True, openai_api_key=OPENAI_API_KEY
+        # Return only the Vector answer
+        v_response = vector_chain().invoke(
+            {"query": question}, prompt=VECTOR_GRAPH_PROMPT, return_only_outputs=True
         )
         response = v_response
     elif body.mode == "graph":
+        # Return only the Graph (text2Cypher) answer
         g_response = graph_chain().invoke(
             {"query": question},
             prompt=CYPHER_GENERATION_PROMPT,
             return_only_outputs=True,
-            openai_api_key=OPENAI_API_KEY
         )
         response = g_response["result"]
     else:
-        v_response = vector_graph_chain().invoke(
-            {"query": question}, prompt=VECTOR_GRAPH_PROMPT, return_only_outputs=True, openai_api_key=OPENAI_API_KEY
+        # Return both vector + graph answers
+        v_response = vector_chain().invoke(
+            {"query": question}, prompt=VECTOR_GRAPH_PROMPT, return_only_outputs=True
         )
         g_response = graph_chain().invoke(
             {"query": question},
             prompt=CYPHER_GENERATION_PROMPT,
             return_only_outputs=True,
-            openai_api_key=OPENAI_API_KEY
         )["result"]
 
+        # Synthesize a composite of both the Vector and Graph responses
         response = simple_agent_chain().invoke(
             {
                 "question": question,
                 "vector_result": v_response,
                 "graph_result": g_response,
-            },
-            openai_api_key=OPENAI_API_KEY
+            }
         )
 
     return response, 200
-
-# To run the server, use the command: uvicorn main:app --reload
-# Link to interactive docs: http://localhost:8000/docs

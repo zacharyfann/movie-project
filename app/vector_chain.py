@@ -2,6 +2,7 @@ from langchain.prompts.prompt import PromptTemplate
 from langchain_community.vectorstores import Neo4jVector
 from langchain.chains import RetrievalQAWithSourcesChain
 from langchain.chains.conversation.memory import ConversationBufferMemory
+from langchain_core.runnables import Runnable
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from retry import retry
 import logging
@@ -26,8 +27,12 @@ VECTOR_GRAPH_PROMPT = PromptTemplate(
     input_variables=["question"], template=VECTOR_GRAPH_PROMPT_TEMPLATE
 )
 
+# Retrieve the OpenAI API key from the environment variable
+# Change to using Ollama
+# openai_key = os.getenv('OPENAI_API_KEY')
 
-def vector_chain():
+
+def vector_chain() -> Runnable:
     global MEMORY
     # Retrieve the OpenAI API key from the environment variable
     # Change to using Ollama
@@ -108,51 +113,49 @@ def vector_chain():
         logging.error(f"Failed to retrieve or create a Neo4jVector. Exiting.")
         exit()
 
-
-vector_graph_retriever = vector_store.as_retriever()
-# Error here because vector_store is None
-vector_graph_chain = RetrievalQAWithSourcesChain.from_chain_type(
-    ChatOpenAI(temperature=0, openai_api_key=openai_key),
-    chain_type="stuff",
-    retriever=vector_graph_retriever,
-    memory=MEMORY,
-    reduce_k_below_max_tokens=True,
-    max_tokens_limit=3000,
-)
-
-
-@retry(tries=2, delay=5)
-def get_results(question) -> str:
-    """Generate response using Neo4jVector using vector index only
-
-    Args:
-        question (str): User query
-
-    Returns:
-        str: Formatted string answer with citations, if available.
-    """
-
-    logging.info(f"Using Neo4j url: {url}")
-
-    prompt = VECTOR_GRAPH_PROMPT.format(question=question)
-
-    # Returns a dict with keys: answer, sources
-    chain_result = vector_graph_chain.invoke(
-        {"question": question},
-        prompt=prompt,
-        return_only_outputs=True,
+    vector_graph_retriever = vector_store.as_retriever()
+    # Error here because vector_store is None
+    vector_graph_chain = RetrievalQAWithSourcesChain.from_chain_type(
+        ChatOpenAI(temperature=0, openai_api_key=openai_key),
+        chain_type="stuff",
+        retriever=vector_graph_retriever,
+        memory=MEMORY,
+        reduce_k_below_max_tokens=True,
+        max_tokens_limit=3000,
     )
 
-    logging.debug(f"chain_result: {chain_result}")
-    result = chain_result["answer"]
+    @retry(tries=2, delay=5)
+    def get_results(question) -> str:
+        """Generate response using Neo4jVector using vector index only
 
-    # Cite sources, if any
-    sources = chain_result["sources"]
-    sources_split = sources.split(", ")
-    for source in sources_split:
-        if source != "" and source != "N/A" and source != "None":
-            result += f"\n - [{source}]({source})"
+        Args:
+            question (str): User query
 
-    return result
+        Returns:
+            str: Formatted string answer with citations, if available.
+        """
 
+        logging.info(f"Using Neo4j url: {url}")
 
+        prompt = VECTOR_GRAPH_PROMPT.format(question=question)
+
+        # Returns a dict with keys: answer, sources
+        chain_result = vector_graph_chain.invoke(
+            {"question": question},
+            prompt=prompt,
+            return_only_outputs=True,
+        )
+
+        logging.debug(f"chain_result: {chain_result}")
+        result = chain_result["answer"]
+
+        # Cite sources, if any
+        sources = chain_result["sources"]
+        sources_split = sources.split(", ")
+        for source in sources_split:
+            if source != "" and source != "N/A" and source != "None":
+                result += f"\n - [{source}]({source})"
+
+        return result
+
+    return vector_chain
