@@ -10,7 +10,7 @@ import os
 
 vector_store = None
 MEMORY = None
-openai_key = "sk-svcacct-7sctRz2dR7Xq9N7rieDFT3BlbkFJ2Bc57yICCR8DjBG5gROX"
+openai_key = os.getenv("OPENAI_API_KEY")
 url = 'neo4j+s://47f87be8c93bce16c7382869f8994523.bolt.neo4jsandbox.com:443'
 # Define the prompt template
 VECTOR_GRAPH_PROMPT_TEMPLATE = """Task: Provide names and related information financial filing data strictly based on the text and instructions provided.
