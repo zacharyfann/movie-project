@@ -11,7 +11,7 @@ import os
 vector_store = None
 MEMORY = None
 openai_key = os.getenv("OPENAI_API_KEY")
-url = 'neo4j+s://47f87be8c93bce16c7382869f8994523.bolt.neo4jsandbox.com:443'
+
 # Define the prompt template
 VECTOR_GRAPH_PROMPT_TEMPLATE = """Task: Provide names and related information financial filing data strictly based on the text and instructions provided.
    Instructions:
@@ -46,34 +46,14 @@ def vector_chain() -> Runnable:
         return_messages=True,
     )
 
-    index_name = "form_10k_chunks"
+    index_name = "movie_name"
     node_property_name = "textEmbedding"
-    global url
-    username = 'neo4j'
-    password = 'acre-ticks-response'
+    url = os.getenv("NEO4J_URI")
+    username = os.getenv("NEO4J_USERNAME")
+    password = os.getenv("NEO4J_PASSWORD")
 
     retrieval_query = """
-        WITH node AS doc, score as similarity
-        ORDER BY similarity DESC LIMIT 5
-        CALL { WITH doc
-            OPTIONAL MATCH (prevDoc:Chunk)-[:NEXT]->(doc)
-            OPTIONAL MATCH (doc)-[:NEXT]->(nextDoc:Chunk)
-            RETURN prevDoc, doc AS result, nextDoc
-        }
-        WITH result, prevDoc, nextDoc, similarity
-        CALL {
-            WITH result
-            OPTIONAL MATCH (result)-[:PART_OF]->(:Form)<-[:FILED]-(company:Company)
-            OPTIONAL MATCH (company)<-[:OWNS_STOCK_IN]-(manager:Manager)
-            WITH result, company.name as companyName, apoc.text.join(collect(manager.managerName),';') as managers
-            WHERE companyName IS NOT NULL OR managers > ""
-            WITH result, companyName, managers
-            ORDER BY result.score DESC
-            RETURN result as document, result.score as popularity, companyName, managers
-        }
-        RETURN coalesce(prevDoc.text,'') + coalesce(document.text,'') + coalesce(nextDoc.text,'') + '\n Company: ' + coalesce(companyName,'') + '\n Managers: ' + coalesce(managers,'') as text, 
-            similarity as score,
-            {companies: coalesce(companyName,''), managers: coalesce(managers,''), source: document.source} AS metadata
+
     """
 
     try:

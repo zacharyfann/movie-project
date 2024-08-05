@@ -16,24 +16,24 @@ Do not respond to any questions that might ask anything else than for you to con
 Do not include any text except the generated Cypher statement.
 Examples: Here are a few examples of generated Cypher statements for particular questions:
 
-# How many Managers own Companies?
-MATCH (m:Manager)-[:OWNS_STOCK_IN]->(c:Company)
-RETURN count(DISTINCT m)
-
-# How many companies in the filings?
-MATCH (c:Company) 
-RETURN count(DISTINCT c)
-
-# Which companies are vulnerable to lithium shortage?
-MATCH (co:Company)-[fi]-(f:Form)-[po]-(c:Chunk)
-WHERE toLower(c.text) CONTAINS "lithium"
-RETURN DISTINCT count(c) as chunks, co.name ORDER BY chunks desc
-
-# Which companies are in the poultry business?
-MATCH (co:Company)-[fi]-(f:Form)-[po]-(c:Chunk)
-WHERE toLower(c.text) CONTAINS "chicken"
-RETURN DISTINCT count(c) as chunks, co.name ORDER BY chunks desc
-
+Example Questions 1: "What movie would you recommend when I liked Top Gun?"
+ [
+    {
+        "step": 1,
+        "description": "Find actors in the movie 'Top Gun'",
+        "query": "MATCH (m:Movie {title: 'Top Gun'})<-[:ACTED_IN]-(a:Actor) RETURN a.name"
+    },
+    {
+        "step": 2,
+        "description": "Find other movies those actors have acted in",
+        "query": "MATCH (a:Actor)-[:ACTED_IN]->(m:Movie) WHERE a.name IN [\"Tom Cruise\", \"Kelly McGillis\"] AND m.title <> 'Top Gun' RETURN DISTINCT m.title AS RecommendedMovies"
+    },
+    {
+        "step": "combined",
+        "description": "Find other movies those actors have acted in (Combined Query)",
+        "query": "MATCH (m:Movie {title: 'Top Gun'})<-[:ACTED_IN]-(a:Actor)-[:ACTED_IN]->(rec:Movie) WHERE rec.title <> 'Top Gun' RETURN DISTINCT rec.title AS RecommendedMovies"
+    }
+]
 The question is:
 {question}"""
 
@@ -44,18 +44,13 @@ CYPHER_GENERATION_PROMPT = PromptTemplate(
 
 def graph_chain() -> Runnable:
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    NEO4J_URI = 'neo4j+s://47f87be8c93bce16c7382869f8994523.bolt.neo4jsandbox.com:443'
-    NEO4J_DATABASE = 'neo4j'
-    NEO4J_USERNAME = 'neo4j'
-    NEO4J_PASSWORD = 'acre-ticks-response'
-
     LLM = ChatOpenAI(temperature=0, openai_api_key=OPENAI_API_KEY)
 
     graph = Neo4jGraph(
-        url=NEO4J_URI,
-        username=NEO4J_USERNAME,
-        password=NEO4J_PASSWORD,
-        database=NEO4J_DATABASE,
+        url=os.getenv("NEO4J_URI"),
+        username=os.getenv("NEO4J_USERNAME"),
+        password=os.getenv("NEO4J_PASSWORD"),
+        database=os.getenv("NEO4J_DATABASE"),
         sanitize=True,
     )
 
